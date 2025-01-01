@@ -1,19 +1,19 @@
 use std::env;
+use std::io::Write;
 use std::io::{BufRead, BufReader};
 use std::os::unix::net::UnixStream;
 
 fn main() {
-    // connect two the two hyprland sockets
+    // get addresses of hyprland sockets
     let xdg_runtime_dir = env::var("XDG_RUNTIME_DIR").expect("couldn't get $XDG_RUNTIME_DIR");
     let hyprland_instance_signature =
         env::var("HYPRLAND_INSTANCE_SIGNATURE").expect("couldn't get $HYPRLAND_INSTANCE_SIGNATURE");
-    //let socket_address_control =
-    //format!("{xdg_runtime_dir}/hypr/{hyprland_instance_signature}/.socket.sock");
+    let socket_address_control =
+        format!("{xdg_runtime_dir}/hypr/{hyprland_instance_signature}/.socket.sock");
     let socket_address_events =
         format!("{xdg_runtime_dir}/hypr/{hyprland_instance_signature}/.socket2.sock");
-    //let mut stream_control = UnixStream::connect(socket_address_control)
-    //    .expect("couldn't connect to first hyprland socket");
-    // TODO shutdown read for stream_control
+
+    // connect to the event socket
     let stream_events = UnixStream::connect(socket_address_events)
         .expect("couldn't connect to second hyprland socket");
     stream_events
@@ -33,13 +33,17 @@ fn main() {
                 last_workspace = name.into();
             }
             Event::SpawnedWindowOnSpecial { address } => {
-                // TODO use the control socket to dispatch `movetoworkspacesilent`, not the `hyprctl` command
-                // but this is not possible right now due to https://github.com/hyprwm/Hyprland/issues/8919
-                let _output = std::process::Command::new("hyprctl")
-                    .arg("dispatch")
-                    .arg("movetoworkspacesilent")
-                    .arg(format!("name:{last_workspace},address:0x{address}"))
-                    .output();
+                // connect to control socket and dispatch command
+                let mut stream_control = UnixStream::connect(&socket_address_control)
+                    .expect("couldn't connect to first hyprland socket");
+                write!(
+                    &mut stream_control,
+                    "/dispatch movetoworkspacesilent name:{last_workspace},address:0x{address}"
+                )
+                .expect("couldn't write to first hyprland socket");
+                stream_control
+                    .shutdown(std::net::Shutdown::Both)
+                    .expect("couldn't shutdown stream to first hyprland socket")
             }
         }
     }
