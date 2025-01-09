@@ -3,6 +3,8 @@ use std::io::Write;
 use std::io::{BufRead, BufReader};
 use std::os::unix::net::UnixStream;
 
+const EXCLUDED_CLASSES: [&str; 1] = ["org.kde.dolphin"];
+
 fn main() {
     // get addresses of hyprland sockets
     let xdg_runtime_dir = env::var("XDG_RUNTIME_DIR").expect("couldn't get $XDG_RUNTIME_DIR");
@@ -27,9 +29,11 @@ fn main() {
     let bufreader_events = BufReader::new(stream_events);
     for line in bufreader_events.lines() {
         let line = line.expect("couldn't read line from hyprland events socket");
+        println!("{line}");
         match parse_event(&line) {
             Event::Irrelevant => {}
             Event::FocusedWorkspace { name } => {
+                println!("SWITCHED TO {name}");
                 last_workspace = name.into();
             }
             Event::SpawnedWindowOnSpecial { address } => {
@@ -77,7 +81,13 @@ fn parse_event(line: &str) -> Event {
             let address = data.next().unwrap();
             let workspace = data.next().unwrap();
             match workspace {
-                "special:special" => Event::SpawnedWindowOnSpecial { address },
+                "special:special" => {
+                    let class = data.next().unwrap();
+                    match EXCLUDED_CLASSES.contains(&class) {
+                        true => Event::Irrelevant,
+                        false => Event::SpawnedWindowOnSpecial { address },
+                    }
+                }
                 _ => Event::Irrelevant,
             }
         }
