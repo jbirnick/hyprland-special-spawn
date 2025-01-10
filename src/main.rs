@@ -29,11 +29,9 @@ fn main() {
     let bufreader_events = BufReader::new(stream_events);
     for line in bufreader_events.lines() {
         let line = line.expect("couldn't read line from hyprland events socket");
-        println!("{line}");
         match parse_event(&line) {
             Event::Irrelevant => {}
             Event::FocusedWorkspace { name } => {
-                println!("SWITCHED TO {name}");
                 last_workspace = name.into();
             }
             Event::SpawnedWindowOnSpecial { address } => {
