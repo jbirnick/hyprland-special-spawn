@@ -22,7 +22,7 @@ fn main() {
         .shutdown(std::net::Shutdown::Write)
         .expect("couldn't shutdown writing for second hyprland socket");
 
-    // store which workspace we were on before the window got opneed on the special workspace
+    // store which workspace we were on before the window got opened on the special workspace
     let mut last_workspace: String = "1".into();
 
     // read the events stream line by line and react to the relevant events
@@ -78,15 +78,14 @@ fn parse_event(line: &str) -> Event {
         "openwindow" => {
             let address = data.next().unwrap();
             let workspace = data.next().unwrap();
-            match workspace {
-                "special:special" => {
-                    let class = data.next().unwrap();
-                    match EXCLUDED_CLASSES.contains(&class) {
-                        true => Event::Irrelevant,
-                        false => Event::SpawnedWindowOnSpecial { address },
-                    }
+            if workspace.starts_with("special:") {
+                let class = data.next().unwrap();
+                match EXCLUDED_CLASSES.contains(&class) {
+                    true => Event::Irrelevant,
+                    false => Event::SpawnedWindowOnSpecial { address },
                 }
-                _ => Event::Irrelevant,
+            } else {
+                Event::Irrelevant
             }
         }
         _ => Event::Irrelevant,
